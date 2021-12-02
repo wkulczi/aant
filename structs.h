@@ -17,3 +17,13 @@ typedef union {
   char charVals[16];
   byte byteVals[16];
 } charsToBytes;
+
+
+struct DEVICE {
+  int id;
+  int nextOp;
+  /*
+     maybe will use someday
+     int seqnum
+  */
+}

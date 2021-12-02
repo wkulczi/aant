@@ -15,6 +15,12 @@ char preambleSymbol = '@';
 
 char charsInitVal[16] = {(char) 0};
 
+FRAME initFrame() {
+  FRAME frame;
+  frame.preamble = preambleSymbol;
+  return frame;
+}
+
 
 String frameToString(FRAME frame) {
   String frameStr = "";
