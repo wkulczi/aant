@@ -27,6 +27,7 @@ int IS_MASTER = -1;
 
 /*Faza pierwsza - skanowanie urządzeń przez MASTER*/
 boolean F1 = 0;
+boolean SCAN_BEGIN = 0;
 boolean F2 = 0;
 boolean DEBUG_INFO = 1;
 
@@ -55,25 +56,32 @@ void loop() {
         Serial.println("[DEBUG] device is set to be a MASTER");
       }
       IS_MASTER = 1;
+      F_CHOOSEMS = 0;
+      F1 = 1;
+      SCAN_BEGIN=1;
     }
     if (ms_choice == 'S' || ms_choice == 's') {
       if (DEBUG_INFO) {
         Serial.println("[DEBUG] device is set to be a SLAVE");
       }
       IS_MASTER = 0;
+      F_CHOOSEMS = 0;
+      F1 = 1;
     }
-    F_CHOOSEMS = 0;
-    F1 = 1;
   }
   if (F1) {
     if (IS_MASTER == 1) {
-      if (DEBUG_INFO) {
-        Serial.println("[DEBUG] MASTER: BEGIN SCAN");
-      }
-      for (int i = 0; i >= 25; i++) {
-        if (i != DEVICE_ID) {
-          setFrame(masterFrame, DEVICE_ID, i, 0x01, 1, emptyLoad, 0x00);
-          Serial.println(frameToString(masterFrame));
+      if (SCAN_BEGIN) {
+        if (DEBUG_INFO) {
+          Serial.println("[DEBUG] MASTER: BEGIN SCAN");
+        }
+        for (int i = 1; i <= 26; i++) {
+          if (i != DEVICE_ID && i != 26) {
+            setFrame(masterFrame, DEVICE_ID, i, 0x01, 1, emptyLoad, 0x00);
+          }
+          if (i == 26) {
+            SCAN_BEGIN = 0;
+          }
         }
       }
       /* 1. Wyślij ramkę cyklu testowania obecności do węzła o numerze N

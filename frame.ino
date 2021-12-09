@@ -42,7 +42,7 @@ void setFrame(FRAME &frame, int masterId, int slaveId, byte fun, int seq, char p
 
  i2c.intVal = slaveId;
  frame.slaveId = i2c.charVal;
-
+ 
  byteToChar b2c;
  b2c.byteVal = fun;
  frame.fun = b2c.charVal;
@@ -52,6 +52,8 @@ void setFrame(FRAME &frame, int masterId, int slaveId, byte fun, int seq, char p
  
  b2c.byteVal = crc;
  frame.crc = b2c.charVal;
+
+
 }
 
 String frameToString(FRAME frame) {
