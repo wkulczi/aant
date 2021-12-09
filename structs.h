@@ -14,10 +14,19 @@ typedef union {
 } intToByte;
 
 typedef union {
+  int intVal;
+  char charVal;
+} intToChar;
+
+typedef union {
   char charVals[16];
   byte byteVals[16];
 } charsToBytes;
 
+typedef union {
+  byte byteVal;
+  char charVal;
+} byteToChar;
 
 struct DEVICE {
   int id;
@@ -26,4 +35,4 @@ struct DEVICE {
      maybe will use someday
      int seqnum
   */
-}
+};

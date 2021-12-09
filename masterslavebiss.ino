@@ -6,14 +6,14 @@
   O matko ten numer sekwencyjny to już trochę dużo. Jak payload będzie za duży to system musi podzielić go na mniejsze ramki i potem w tym numerze sekwencyjnym mu powiedzieć, że ej to jest pierwsza dopiero :(
   Chyba na razie go pominiemy i zobaczymy co dalej
 */
-#include "structs.h"
+#include "structs.h";
 
+FRAME masterFrame;
+FRAME slaveFrame;
+FRAME bufFrame;
 /* DEBUG FLAG FOR LOGGING */
-boolean DEBUG_INFO = 1;
 
-
-
-DEVICE deviceList[25];
+//DEVICE deviceList[25];
 int DEVICE_ID = 4;
 
 /* Faza wyboru typu urządzenia master/slave*/
@@ -27,9 +27,16 @@ int IS_MASTER = -1;
 
 /*Faza pierwsza - skanowanie urządzeń przez MASTER*/
 boolean F1 = 0;
+boolean F2 = 0;
+boolean DEBUG_INFO = 1;
+
+char emptyLoad[16] = {(char) 0};
 
 void setup() {
   Serial.begin(9600);
+  masterFrame = initFrame();
+  slaveFrame = initFrame();
+  bufFrame = initFrame();
 
   if (DEBUG_INFO) {
     Serial.print("[DEBUG] Device with id ");
@@ -60,6 +67,15 @@ void loop() {
   }
   if (F1) {
     if (IS_MASTER == 1) {
+      if (DEBUG_INFO) {
+        Serial.println("[DEBUG] MASTER: BEGIN SCAN");
+      }
+      for (int i = 0; i >= 25; i++) {
+        if (i != DEVICE_ID) {
+          setFrame(masterFrame, DEVICE_ID, i, 0x01, 1, emptyLoad, 0x00);
+          Serial.println(frameToString(masterFrame));
+        }
+      }
       /* 1. Wyślij ramkę cyklu testowania obecności do węzła o numerze N
          2. Odczekaj 200ms na odpowiedź
          3. Jeśli otrzymasz odpowiedź dodaj ten numer do listy aktywnych urządzeń
@@ -83,25 +99,25 @@ void loop() {
   if (F2) {
     if (IS_MASTER == 1) {
       /*
-      0x03
-      0x04
-      0x06
-      0x07
-      0x09
-      0x0A
+        0x03
+        0x04
+        0x06
+        0x07
+        0x09
+        0x0A
 
-      0x0C
+        0x0C
       */
     }
     else if (IS_MASTER == 0) {
 
-    /*
-     * 0x05
-     * 0x08
-     * 0x0B
-     * 
-     * 0x0C
-    */
+      /*
+         0x05
+         0x08
+         0x0B
+
+         0x0C
+      */
 
     }
     else {
