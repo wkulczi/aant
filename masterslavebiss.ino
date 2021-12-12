@@ -22,7 +22,7 @@ FRAME bufFrame;
 
 DEVICE deviceList[25];
 int numOfDevices = 0;
-int DEVICE_ID = 4;
+int DEVICE_ID = 8;
 
 /* Faza wyboru typu urządzenia master/slave*/
 boolean F_CHOOSEMS = 1;
@@ -41,9 +41,11 @@ boolean DEBUG_INFO = 1;
 
 unsigned long sendTimestamp;
 
-char emptyLoad[16] = {(char) 0};
+char emptyLoad[16] = {(char) 255};
 
 void setup() {
+  setupEmptyTable();
+  
   Serial.begin(9600);
   masterFrame = initFrame();
   slaveFrame = initFrame();
@@ -90,6 +92,10 @@ void loop() {
         for (int i = 1; i <= 26; i++) {
           if (i != DEVICE_ID && i != 26) {
             setFrame(masterFrame, DEVICE_ID, i, 0x01, 1, emptyLoad, 0x00);
+            //
+            //            intToChar i2c;
+            //            i2c.charVal = masterFrame.slaveId;
+            //            Serial.println(i2c.intVal);
 
             //send frame
             changeToSend();
@@ -105,7 +111,8 @@ void loop() {
                 char received[24] = "";
                 radio.read(&received, sizeof(received));
                 slaveFrame = stringToFrame(String(received));
-
+                Serial.println(int(slaveFrame.slaveId));
+                Serial.println(slaveFrame.fun);
                 byteToChar b2c;
                 b2c.byteVal = 0x02;
 
@@ -138,6 +145,15 @@ void loop() {
         char received[24] = "";
         radio.read(&received, sizeof(received));
         masterFrame = stringToFrame(String(received));
+        
+        intToChar i2c;
+        i2c.charVal = masterFrame.slaveId;
+
+        byteToChar b2c;
+        b2c.charVal = masterFrame.fun;
+//todo tomorrow: change the structure of FRAME to hold appropriate values (i dont want to convert this everytime)
+//        Serial.println(b2c.byteVal == 0x01);
+//        Serial.println(i2c.intVal);
 
         if (masterFrame.slaveId == DEVICE_ID) {
           setFrame(slaveFrame, DEVICE_ID, DEVICE_ID, 0x02, 1, emptyLoad, 0x00);
@@ -249,4 +265,15 @@ void changeToReceive() {
 void changeToSend() {
   radio.openWritingPipe(address);
   radio.stopListening();
+}
+
+/*
+Ogólnie historia jest taka, że jak zrobię tablicę pełną (char) 0 
+to przy konwersji na stringa on to obcina, więc zrobiłem taką z 255.
+Mam nadzieję, że nie będę tej decyzji żałował.
+*/
+void setupEmptyTable(){
+  for(int i = 0; i<=16; i++){
+    emptyLoad[i] = (char) 255;
+  }
 }

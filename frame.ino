@@ -34,7 +34,7 @@ FRAME initFrame() {
   return frame;
 }
 
-void setFrame(FRAME &frame, int masterId, int slaveId, byte fun, int seq, char payload[25], byte crc){
+void setFrame(FRAME &frame, int masterId, int slaveId, byte fun, int seq, char payload[16], byte crc){
  intToChar i2c;
  i2c.intVal = masterId;
 
@@ -48,6 +48,7 @@ void setFrame(FRAME &frame, int masterId, int slaveId, byte fun, int seq, char p
  frame.fun = b2c.charVal;
 
  frame.seq = '1';
+ 
  assignCharTable(frame.load, payload);
  
  b2c.byteVal = crc;
@@ -73,34 +74,21 @@ FRAME stringToFrame(String frameStr) {
   String strBuf = "";
   char charBuf[16] = {(char) 0};
 
-  strBuf = frameStr.substring(0, 0);
-  strBuf.toCharArray(charBuf, 1);
-  frame.preamble = charBuf[0];
+  frame.preamble = frameStr.charAt(0);
 
-  strBuf = frameStr.substring(1, 1);
-  strBuf.toCharArray(charBuf, 1);
-  frame.masterId = charBuf[0];
+  frame.masterId = frameStr.charAt(1);
 
-  strBuf = frameStr.substring(2, 2);
-  strBuf.toCharArray(charBuf, 1);
-  frame.slaveId = charBuf[0];
+  frame.slaveId = frameStr.charAt(2);
 
-  strBuf = frameStr.substring(3, 3);
-  strBuf.toCharArray(charBuf, 1);
-  frame.fun = charBuf[0];
+  frame.fun = frameStr.charAt(3);
 
-  strBuf = frameStr.substring(4, 4);
-  strBuf.toCharArray(charBuf, 1);
-  frame.seq = charBuf[0];
+  frame.seq = frameStr.charAt(4);
 
-  strBuf = frameStr.substring(5, 15);
+  strBuf = frameStr.substring(5, 21);
   strBuf.toCharArray(charBuf, 1);
   assignCharTable(frame.load, charBuf);
 
-
-  strBuf = frameStr.substring(16, 16);
-  strBuf.toCharArray(charBuf, 1);
-  frame.crc = charBuf[0];
+  frame.crc = frameStr.charAt(22);
 
   return frame;
 }
