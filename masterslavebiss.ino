@@ -7,13 +7,21 @@
   Chyba na razie go pominiemy i zobaczymy co dalej
 */
 #include "structs.h";
+#include <SPI.h>;
+#include <nRF24L01.h>;
+#include <RF24.h>;
+
+RF24 radio(7, 8); // CE, CSN
+const byte address[6] = "00001";
+
 
 FRAME masterFrame;
 FRAME slaveFrame;
 FRAME bufFrame;
 /* DEBUG FLAG FOR LOGGING */
 
-//DEVICE deviceList[25];
+DEVICE deviceList[25];
+int numOfDevices = 0;
 int DEVICE_ID = 4;
 
 /* Faza wyboru typu urządzenia master/slave*/
@@ -30,6 +38,8 @@ boolean F1 = 0;
 boolean SCAN_BEGIN = 0;
 boolean F2 = 0;
 boolean DEBUG_INFO = 1;
+
+unsigned long sendTimestamp;
 
 char emptyLoad[16] = {(char) 0};
 
@@ -55,15 +65,17 @@ void loop() {
       if (DEBUG_INFO) {
         Serial.println("[DEBUG] device is set to be a MASTER");
       }
+      setupRadioSend();
       IS_MASTER = 1;
       F_CHOOSEMS = 0;
       F1 = 1;
-      SCAN_BEGIN=1;
+      SCAN_BEGIN = 1;
     }
     if (ms_choice == 'S' || ms_choice == 's') {
       if (DEBUG_INFO) {
         Serial.println("[DEBUG] device is set to be a SLAVE");
       }
+      setupRadioReceive();
       IS_MASTER = 0;
       F_CHOOSEMS = 0;
       F1 = 1;
@@ -78,25 +90,64 @@ void loop() {
         for (int i = 1; i <= 26; i++) {
           if (i != DEVICE_ID && i != 26) {
             setFrame(masterFrame, DEVICE_ID, i, 0x01, 1, emptyLoad, 0x00);
+
+            //send frame
+            changeToSend();
+            char text[24] = "";
+            frameToString(masterFrame).toCharArray(text, 24);
+            radio.write(&text, sizeof(text));
+
+            //wait to receive response
+            changeToReceive();
+            sendTimestamp = millis();
+            while (millis() - sendTimestamp < 200) {
+              if (radio.available()) {
+                char received[24] = "";
+                radio.read(&received, sizeof(received));
+                slaveFrame = stringToFrame(String(received));
+
+                byteToChar b2c;
+                b2c.byteVal = 0x02;
+
+                if (slaveFrame.slaveId == i && slaveFrame.fun == b2c.charVal) {
+                  if (DEBUG_INFO) {
+                    Serial.print("[DEBUG] found device with id");
+                    Serial.println(i);
+                  }
+
+                  DEVICE newDevice;
+                  newDevice.id = i;
+                  newDevice.nextOp = -1;
+                  deviceList[numOfDevices] = newDevice;
+                  numOfDevices += 1;
+                }
+              }
+            }
           }
           if (i == 26) {
+            //end scan
             SCAN_BEGIN = 0;
+            /*Przechodzimy do sekcji z ustalaniem kolejności zadania, nie mam pomysłu jeszcze na to*/
           }
         }
       }
-      /* 1. Wyślij ramkę cyklu testowania obecności do węzła o numerze N
-         2. Odczekaj 200ms na odpowiedź
-         3. Jeśli otrzymasz odpowiedź dodaj ten numer do listy aktywnych urządzeń
-
-         No ja bym tu dał listę struktur[25] urządzeń. Jeden argument to numer a drugi to operacja
-
-         Jak to skończy to łapać z serial portu input żeby ustalić sekwencję
-
-
-       **** Pamiętaj żeby wykluczyć swój ID ***** (chociaż w sumie może nie trzeba?)
-      */
     }
     if (IS_MASTER == 0) {
+      changeToReceive();
+      if (radio.available()) {
+        char received[24] = "";
+        radio.read(&received, sizeof(received));
+        masterFrame = stringToFrame(String(received));
+
+        if (masterFrame.slaveId == DEVICE_ID) {
+          setFrame(slaveFrame, DEVICE_ID, DEVICE_ID, 0x02, 1, emptyLoad, 0x00);
+          changeToSend();
+          //send frame
+          char text[24] = "";
+          frameToString(slaveFrame).toCharArray(text, 24);
+          radio.write(&text, sizeof(text));
+        }
+      }
       /*Odbierz ramkę mastera z cyklu testowania obecności węzłów i odeślij swoją asap*/
 
     }
@@ -172,4 +223,30 @@ void showNewData() {
     ms_choice = receivedChars[0];
     newData = false;
   }
+}
+
+
+void setupRadioReceive() {
+  radio.begin();
+  radio.openReadingPipe(0, address);
+  radio.setPALevel(RF24_PA_MIN);
+  radio.startListening();
+}
+
+void setupRadioSend() {
+  radio.begin();
+  radio.openWritingPipe(address);
+  radio.setPALevel(RF24_PA_MIN);
+  radio.stopListening();
+}
+
+
+void changeToReceive() {
+  radio.openReadingPipe(0, address);
+  radio.startListening();
+}
+
+void changeToSend() {
+  radio.openWritingPipe(address);
+  radio.stopListening();
 }
