@@ -20,9 +20,10 @@ FRAME slaveFrame;
 FRAME bufFrame;
 /* DEBUG FLAG FOR LOGGING */
 
-DEVICE deviceList[25];
-int numOfDevices = 0;
-int DEVICE_ID = 8;
+
+DEVOP deviceOpList[25];
+int deviceList[25];
+int DEVICE_ID = 7;
 
 /* Faza wyboru typu urządzenia master/slave*/
 boolean F_CHOOSEMS = 1;
@@ -36,6 +37,7 @@ int IS_MASTER = -1;
 /*Faza pierwsza - skanowanie urządzeń przez MASTER*/
 boolean F1 = 0;
 boolean SCAN_BEGIN = 0;
+boolean GETOPS = 0;
 boolean F2 = 0;
 boolean DEBUG_INFO = 1;
 
@@ -45,7 +47,7 @@ char emptyLoad[16] = {(char) 255};
 
 void setup() {
   setupEmptyTable();
-  
+  setupEmptyDevOpTable();
   Serial.begin(9600);
   masterFrame = initFrame();
   slaveFrame = initFrame();
@@ -87,16 +89,12 @@ void loop() {
     if (IS_MASTER == 1) {
       if (SCAN_BEGIN) {
         if (DEBUG_INFO) {
-          Serial.println("[DEBUG] MASTER: BEGIN SCAN");
+          Serial.println("[DEBUG] MASTER: BEGIN  SCAN");
         }
+        int numOfDevices = 0;
         for (int i = 1; i <= 26; i++) {
           if (i != DEVICE_ID && i != 26) {
             setFrame(masterFrame, DEVICE_ID, i, 0x01, 1, emptyLoad, 0x00);
-            //
-            //            intToChar i2c;
-            //            i2c.charVal = masterFrame.slaveId;
-            //            Serial.println(i2c.intVal);
-
             //send frame
             changeToSend();
             char text[24] = "";
@@ -111,21 +109,13 @@ void loop() {
                 char received[24] = "";
                 radio.read(&received, sizeof(received));
                 slaveFrame = stringToFrame(String(received));
-                Serial.println(int(slaveFrame.slaveId));
-                Serial.println(slaveFrame.fun);
-                byteToChar b2c;
-                b2c.byteVal = 0x02;
 
-                if (slaveFrame.slaveId == i && slaveFrame.fun == b2c.charVal) {
+                if (slaveFrame.slaveId == i && slaveFrame.fun == 0x02) {
                   if (DEBUG_INFO) {
-                    Serial.print("[DEBUG] found device with id");
+                    Serial.print("[DEBUG] found device with id ");
                     Serial.println(i);
                   }
-
-                  DEVICE newDevice;
-                  newDevice.id = i;
-                  newDevice.nextOp = -1;
-                  deviceList[numOfDevices] = newDevice;
+                  deviceList[numOfDevices] = i;
                   numOfDevices += 1;
                 }
               }
@@ -134,8 +124,16 @@ void loop() {
           if (i == 26) {
             //end scan
             SCAN_BEGIN = 0;
+            GETOPS = 1;
             /*Przechodzimy do sekcji z ustalaniem kolejności zadania, nie mam pomysłu jeszcze na to*/
           }
+        }
+      }
+      if (GETOPS) {
+        if (Serial.available() > 0) {
+          String monitorInput = "";
+          monitorInput = Serial.readStringUntil('\n');
+          parseOpString(monitorInput);
         }
       }
     }
@@ -145,15 +143,6 @@ void loop() {
         char received[24] = "";
         radio.read(&received, sizeof(received));
         masterFrame = stringToFrame(String(received));
-        
-        intToChar i2c;
-        i2c.charVal = masterFrame.slaveId;
-
-        byteToChar b2c;
-        b2c.charVal = masterFrame.fun;
-//todo tomorrow: change the structure of FRAME to hold appropriate values (i dont want to convert this everytime)
-//        Serial.println(b2c.byteVal == 0x01);
-//        Serial.println(i2c.intVal);
 
         if (masterFrame.slaveId == DEVICE_ID) {
           setFrame(slaveFrame, DEVICE_ID, DEVICE_ID, 0x02, 1, emptyLoad, 0x00);
@@ -268,12 +257,60 @@ void changeToSend() {
 }
 
 /*
-Ogólnie historia jest taka, że jak zrobię tablicę pełną (char) 0 
-to przy konwersji na stringa on to obcina, więc zrobiłem taką z 255.
-Mam nadzieję, że nie będę tej decyzji żałował.
+  Ogólnie historia jest taka, że jak zrobię tablicę pełną (char) 0
+  to przy konwersji na stringa on to obcina, więc zrobiłem taką z 255.
+  Mam nadzieję, że nie będę tej decyzji żałował.
 */
-void setupEmptyTable(){
-  for(int i = 0; i<=16; i++){
+void setupEmptyTable() {
+  for (int i = 0; i <= 16; i++) {
     emptyLoad[i] = (char) 255;
+  }
+}
+
+
+void setupEmptyDevOpTable(){
+  DEVOP buf;
+  buf.id = -1;
+  for (int i = 0; i<= 25; i++){
+    deviceOpList[i] = buf;
+  }
+}
+/*
+    Please insert strings in this manner:
+    DD-OO,DD-00,DD-00
+    DD - device
+    OO - operation
+*/
+void parseOpString(String input) {
+  /*
+     I know it could be better, but it's late, okay?
+  */
+  DEVOP buf;
+  String str = input;
+  String strs[20];
+  int stringCount = 0;
+  int devOpIter = 0;
+
+  while (str.length() > 0) {
+    int commaIndex = str.indexOf(',');
+    if (commaIndex == -1) {
+      strs[stringCount++] = str;
+      break;
+    }
+    else {
+      strs[stringCount++] = str.substring(0, commaIndex);
+      str = str.substring(commaIndex + 1);
+    }
+  }
+
+  for (int i = 0; i < stringCount; i++)
+  {
+    String devop = strs[i];
+    int dashIndex = str.indexOf('-');
+
+    buf.id = devop.substring(0, dashIndex).toInt();
+    buf.nextOp = devop.substring(dashIndex + 1).toInt();
+
+    deviceOpList[devOpIter++] = buf;
   }
 }

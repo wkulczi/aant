@@ -9,18 +9,18 @@
     1B          1B          1B         1B           1B              16B      1B
 
 
-0x01 – test obecności węzła Slave (wysyła Master).
-0x02 – zgłoszenie obecności (S > M).
-0x03 – wysłanie danych bez zabezpieczeń (M > S).
-0x04 – żądanie przesyłania danych ze Slave bez zabezpieczeń (M > S).
-0x05 – przesyłanie danych ze Slave bez zabezpieczeń (S > M).
-0x06 – wysłanie danych z CRC8 (M > S).
-0x07 – żądanie przesyłania danych ze Slave z CRC8 (M > S).
-0x08 – przesłanie danych ze Slave z CRC8 (S > M).
-0x09 – wysłanie danych z CRC8 i szyfrowaniem AES128 (M > S).
-0x0A – żądanie przesyłania danych ze Slave z CRC8 i szyfrowaniem AES128 (M > S).
-0x0B – przesłanie danych ze Slave z CRC8 i szyfrowaniem AES128 (S > M).
-0x0C – potwierdzenie odbioru danych z węzła Master lub Slave.
+  0x01 – test obecności węzła Slave (wysyła Master).
+  0x02 – zgłoszenie obecności (S > M).
+  0x03 – wysłanie danych bez zabezpieczeń (M > S).
+  0x04 – żądanie przesyłania danych ze Slave bez zabezpieczeń (M > S).
+  0x05 – przesyłanie danych ze Slave bez zabezpieczeń (S > M).
+  0x06 – wysłanie danych z CRC8 (M > S).
+  0x07 – żądanie przesyłania danych ze Slave z CRC8 (M > S).
+  0x08 – przesłanie danych ze Slave z CRC8 (S > M).
+  0x09 – wysłanie danych z CRC8 i szyfrowaniem AES128 (M > S).
+  0x0A – żądanie przesyłania danych ze Slave z CRC8 i szyfrowaniem AES128 (M > S).
+  0x0B – przesłanie danych ze Slave z CRC8 i szyfrowaniem AES128 (S > M).
+  0x0C – potwierdzenie odbioru danych z węzła Master lub Slave.
 
 */
 
@@ -34,25 +34,17 @@ FRAME initFrame() {
   return frame;
 }
 
-void setFrame(FRAME &frame, int masterId, int slaveId, byte fun, int seq, char payload[16], byte crc){
- intToChar i2c;
- i2c.intVal = masterId;
+void setFrame(FRAME &frame, int masterId, int slaveId, byte fun, int seq, char payload[16], byte crc) {
+  frame.masterId = masterId;
+  frame.slaveId = slaveId;
+  frame.fun = fun;
+  frame.seq = seq;
 
- frame.masterId = i2c.charVal;
+  assignCharTable(frame.load, payload);
 
- i2c.intVal = slaveId;
- frame.slaveId = i2c.charVal;
- 
- byteToChar b2c;
- b2c.byteVal = fun;
- frame.fun = b2c.charVal;
-
- frame.seq = '1';
- 
- assignCharTable(frame.load, payload);
- 
- b2c.byteVal = crc;
- frame.crc = b2c.charVal;
+  byteToChar b2c;
+  b2c.byteVal = crc;
+  frame.crc = b2c.charVal;
 
 
 }
@@ -60,7 +52,37 @@ void setFrame(FRAME &frame, int masterId, int slaveId, byte fun, int seq, char p
 String frameToString(FRAME frame) {
   String frameStr = "";
   frameStr += frame.preamble;
+
+  intToChar i2c;
+  i2c.intVal = frame.masterId;
+  frameStr += i2c.charVal;
+
+  i2c.intVal = frame.slaveId;
+  frameStr += i2c.charVal;
+
+  byteToChar b2c;
+  b2c.byteVal = frame.fun;
+  frameStr += b2c.charVal;
+
+  i2c.intVal = frame.seq;
+  frameStr += i2c.charVal;
+
+  frameStr += frame.load;
+  frameStr += frame.crc;
+  return frameStr;
+}
+
+//to może kuleć, trzeba sprawdzić
+String frameToReadableString(FRAME frame) {
+  String frameStr = "";
+  frameStr += frame.preamble;
+  if (frame.masterId < 10) {
+    frameStr += 0;
+  }
   frameStr += frame.masterId;
+  if (frame.slaveId < 10) {
+    frameStr += 0;
+  }
   frameStr += frame.slaveId;
   frameStr += frame.fun;
   frameStr += frame.seq;
@@ -76,13 +98,20 @@ FRAME stringToFrame(String frameStr) {
 
   frame.preamble = frameStr.charAt(0);
 
-  frame.masterId = frameStr.charAt(1);
 
-  frame.slaveId = frameStr.charAt(2);
+  intToChar i2c;
+  i2c.charVal = frameStr.charAt(1);
+  frame.masterId = i2c.intVal;
 
-  frame.fun = frameStr.charAt(3);
+  i2c.charVal = frameStr.charAt(2);
+  frame.slaveId = i2c.intVal;
 
-  frame.seq = frameStr.charAt(4);
+  byteToChar b2c;
+  b2c.charVal = frameStr.charAt(3);
+  frame.fun = b2c.byteVal;
+
+  i2c.charVal = frameStr.charAt(4);
+  frame.seq = i2c.intVal;
 
   strBuf = frameStr.substring(5, 21);
   strBuf.toCharArray(charBuf, 1);

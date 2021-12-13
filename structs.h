@@ -1,11 +1,11 @@
 struct FRAME {
   char preamble;
-  char masterId;
-  char slaveId;
-  char fun;
-  char seq;
+  int masterId;
+  int slaveId;
+  byte fun;
+  int seq;
   char load[16];
-  char crc;
+  char crc; //moze byte, do ustalenia pozniej
 };
 
 typedef union {
@@ -28,7 +28,7 @@ typedef union {
   char charVal;
 } byteToChar;
 
-struct DEVICE {
+struct DEVOP {
   int id;
   int nextOp;
   /*
