@@ -21,6 +21,7 @@ FRAME bufFrame;
 /* DEBUG FLAG FOR LOGGING */
 
 
+int numOfDevices = 0;
 DEVOP deviceOpList[25];
 int deviceList[25];
 int DEVICE_ID = 7;
@@ -91,7 +92,7 @@ void loop() {
         if (DEBUG_INFO) {
           Serial.println("[DEBUG] MASTER: BEGIN  SCAN");
         }
-        int numOfDevices = 0;
+        numOfDevices = 0;
         for (int i = 1; i <= 26; i++) {
           if (i != DEVICE_ID && i != 26) {
             setFrame(masterFrame, DEVICE_ID, i, 0x01, 1, emptyLoad, 0x00);
@@ -122,6 +123,14 @@ void loop() {
             }
           }
           if (i == 26) {
+            if (numOfDevices > 0) {
+              Serial.print("Found devices with ids: ");
+              for (int j = 0; j < numOfDevices; j++) {
+                Serial.print(deviceList[j]);
+                Serial.print(" ");
+              }
+              Serial.println("");
+            }
             //end scan
             SCAN_BEGIN = 0;
             GETOPS = 1;
@@ -144,7 +153,7 @@ void loop() {
         radio.read(&received, sizeof(received));
         masterFrame = stringToFrame(String(received));
 
-        if (masterFrame.slaveId == DEVICE_ID) {
+        if (masterFrame.slaveId == DEVICE_ID && masterFrame.fun == 0x01) {
           setFrame(slaveFrame, DEVICE_ID, DEVICE_ID, 0x02, 1, emptyLoad, 0x00);
           changeToSend();
           //send frame
@@ -154,7 +163,6 @@ void loop() {
         }
       }
       /*Odbierz ramkę mastera z cyklu testowania obecności węzłów i odeślij swoją asap*/
-
     }
     if (IS_MASTER == -1) {
       Serial.println("ERR, are you a slave or a master?");
@@ -162,16 +170,74 @@ void loop() {
   }
   if (F2) {
     if (IS_MASTER == 1) {
-      /*
-        0x03
-        0x04
-        0x06
-        0x07
-        0x09
-        0x0A
+      boolean shouldWork = true;
+      int devOpIter = 0;
+      while (shouldWork) {
+        if (deviceOpList[devOpIter].id == -1) {
+          //nie ma więcej operacji w liście, zakończ pętlę
+          shouldWork = false;
+          break;
+        }
 
-        0x0C
-      */
+        /*
+           Sprawdź czy master ma w swojej tablicy urządzeń takie urządzenie, które wpisał użytkownik
+        */
+        if (containsDevice(deviceOpList[devOpIter].id)) {
+          /*
+            rób rzeczy
+          */
+
+          if (deviceOpList[devOpIter].nextOp == 3) { //0x03 wysłanie danych bez zabezpieczeń (M > S)
+            changeToSend();
+
+            /////////////////////////////////
+            // fetch data from sensor here //
+            /////////////////////////////////
+
+            char load[16]; //insert load instead of emptyLoad of course
+            setFrame(masterFrame, DEVICE_ID, deviceOpList[devOpIter].id, 0x03, 1, emptyLoad, 0x00);
+
+
+          }
+          if (deviceOpList[devOpIter].nextOp == 4) { //0x04 żądanie przesyłania danych ze Slave bez zabezpieczeń (M > S)
+
+            changeToSend();
+            setFrame(masterFrame, DEVICE_ID, deviceOpList[devOpIter].id, 0x04, 1, emptyLoad, 0x00);
+            //send this shit
+
+
+            changeToReceive();
+            ///wait for signal
+
+
+            /////////////////////////
+            // show data on screen //
+            /////////////////////////
+
+          }
+          if (deviceOpList[devOpIter].nextOp == 6) { //0x06 wysłanie danych z CRC8 (M > S)
+            //nah man, not happening
+
+          }
+          if (deviceOpList[devOpIter].nextOp == 7) { //0x07 żądanie przesyłania danych ze Slave z CRC8 (M > S).
+
+          }
+          if (deviceOpList[devOpIter].nextOp == 9) { //0x09 wysłanie danych z CRC8 i szyfrowaniem AES128 (M > S)
+
+          }
+          if (deviceOpList[devOpIter].nextOp == 10) { //0x0A żądanie przesyłania danych ze Slave z CRC8 i szyfrowaniem AES128 (M > S).
+
+          }
+          //to nie będzie w deviceOp a zawsze trzeba na to poczekać
+          //if (deviceOpList[devOpIter].nextOp == 12) { //0x0C potwierdzenie odbioru danych z węzła Master lub Slave.
+
+          //}
+        }
+
+        //else: nie rób nic, przejdź do następnej operacji w liście
+        //op  eracje zakończone, przejdź do następnej
+        devOpIter += 1;
+      }
     }
     else if (IS_MASTER == 0) {
 
@@ -268,10 +334,10 @@ void setupEmptyTable() {
 }
 
 
-void setupEmptyDevOpTable(){
+void setupEmptyDevOpTable() {
   DEVOP buf;
   buf.id = -1;
-  for (int i = 0; i<= 25; i++){
+  for (int i = 0; i <= 25; i++) {
     deviceOpList[i] = buf;
   }
 }
@@ -313,4 +379,13 @@ void parseOpString(String input) {
 
     deviceOpList[devOpIter++] = buf;
   }
+}
+
+boolean containsDevice(int deviceId) {
+  for (int i = 0; i < numOfDevices; i++) {
+    if (deviceList[i] == deviceId) {
+      return true;
+    }
+  }
+  return false;
 }
