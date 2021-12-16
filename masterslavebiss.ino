@@ -28,8 +28,9 @@ FRAME bufFrame;
 
 int numOfDevices = 0;
 DEVOP deviceOpList[25];
+int DEVOPITER = 0;
 int deviceList[25];
-int DEVICE_ID = 7;
+int DEVICE_ID = 8;
 
 /* Faza wyboru typu urządzenia master/slave*/
 boolean F_CHOOSEMS = 1;
@@ -56,6 +57,9 @@ void setup() {
   displaySetup();
   setupEmptyTable();
   setupEmptyDevOpTable();
+  F1 = 0;
+  F2 = 0;
+  F_CHOOSEMS = 1;
   Serial.begin(9600);
   masterFrame = initFrame();
   slaveFrame = initFrame();
@@ -93,7 +97,7 @@ void loop() {
       F1 = 1;
     }
   }
-  if (F1) {
+  if (F1 > 0) {
     if (IS_MASTER == 1) {
       if (SCAN_BEGIN) {
         if (DEBUG_INFO) {
@@ -150,6 +154,11 @@ void loop() {
           String monitorInput = "";
           monitorInput = Serial.readStringUntil('\n');
           parseOpString(monitorInput);
+          if (DEVOPITER > 0) {
+            GETOPS = 0;
+            F1 = 0;
+            F2 = 1;
+          }
         }
       }
     }
@@ -180,21 +189,26 @@ void loop() {
       boolean shouldWork = true;
       int devOpIter = 0;
       while (shouldWork) {
+
         if (deviceOpList[devOpIter].id == -1) {
           //nie ma więcej operacji w liście, zakończ pętlę
           shouldWork = false;
+          F2 = 0;
+          //wyzeruj wszystko i wrocic do tego wyboru master/slave
           break;
         }
 
         /*
            Sprawdź czy master ma w swojej tablicy urządzeń takie urządzenie, które wpisał użytkownik
         */
+        
         if (containsDevice(deviceOpList[devOpIter].id)) {
           /*
             rób rzeczy
           */
 
           if (deviceOpList[devOpIter].nextOp == 3) { //0x03 wysłanie danych bez zabezpieczeń (M > S)
+            Serial.println("HALKO");
             changeToSend();
 
 
@@ -271,9 +285,9 @@ void loop() {
       */
 
     }
-    else {
-      Serial.println("ERR, are you a slave or a master?");
-    }
+    //    else {
+    //      Serial.println("ERR, are you a slave or a master?");
+    //    }
 
   }
 }
@@ -376,7 +390,7 @@ void parseOpString(String input) {
   String str = input;
   String strs[20];
   int stringCount = 0;
-  int devOpIter = 0;
+  DEVOPITER = 0;
 
   while (str.length() > 0) {
     int commaIndex = str.indexOf(',');
@@ -390,6 +404,7 @@ void parseOpString(String input) {
     }
   }
 
+
   for (int i = 0; i < stringCount; i++)
   {
     String devop = strs[i];
@@ -398,15 +413,16 @@ void parseOpString(String input) {
     buf.id = devop.substring(0, dashIndex).toInt();
     buf.nextOp = devop.substring(dashIndex + 1).toInt();
 
-    deviceOpList[devOpIter++] = buf;
+    deviceOpList[DEVOPITER++] = buf;
   }
 }
 
 boolean containsDevice(int deviceId) {
   for (int i = 0; i < numOfDevices; i++) {
+    Serial.println(deviceList[i]);
     if (deviceList[i] == deviceId) {
       return true;
-    }
+    } 
   }
   return false;
 }
