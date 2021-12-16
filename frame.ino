@@ -22,6 +22,9 @@
   0x0B – przesłanie danych ze Slave z CRC8 i szyfrowaniem AES128 (S > M).
   0x0C – potwierdzenie odbioru danych z węzła Master lub Slave.
 
+
+  jak będziesz wysyłał ładunek to nie kombinuj z konwersją liczby 0-255 na chara tylko po prostu zapisz jako "44" i siema
+
 */
 
 char preambleSymbol = '@';
@@ -97,7 +100,6 @@ FRAME stringToFrame(String frameStr) {
   char charBuf[16] = {(char) 0};
 
   frame.preamble = frameStr.charAt(0);
-
 
   intToChar i2c;
   i2c.charVal = frameStr.charAt(1);

@@ -11,6 +11,11 @@
 #include <nRF24L01.h>;
 #include <RF24.h>;
 
+////////////// Your sensor configuration here //////////////
+int potPin = A1;
+
+
+
 RF24 radio(7, 8); // CE, CSN
 const byte address[6] = "00001";
 
@@ -47,6 +52,8 @@ unsigned long sendTimestamp;
 char emptyLoad[16] = {(char) 255};
 
 void setup() {
+  sensorSetup();
+  displaySetup();
   setupEmptyTable();
   setupEmptyDevOpTable();
   Serial.begin(9600);
@@ -190,18 +197,32 @@ void loop() {
           if (deviceOpList[devOpIter].nextOp == 3) { //0x03 wysłanie danych bez zabezpieczeń (M > S)
             changeToSend();
 
+
             /////////////////////////////////
             // fetch data from sensor here //
             /////////////////////////////////
 
+            int arraySize = 16;
+            char paddedSensorValue[16] = "";
+            readSensorToCharTable(paddedSensorValue);
+
+
+            for (int i = 0; i < 16; i++) {
+              Serial.print(paddedSensorValue[i]);
+            }
+            Serial.println(" ");
+
+
             char load[16]; //insert load instead of emptyLoad of course
-            setFrame(masterFrame, DEVICE_ID, deviceOpList[devOpIter].id, 0x03, 1, emptyLoad, 0x00);
+            setFrame(masterFrame, DEVICE_ID, deviceOpList[devOpIter].id, 0x03, 1, paddedSensorValue, 0x00);
 
 
           }
           if (deviceOpList[devOpIter].nextOp == 4) { //0x04 żądanie przesyłania danych ze Slave bez zabezpieczeń (M > S)
 
+
             changeToSend();
+
             setFrame(masterFrame, DEVICE_ID, deviceOpList[devOpIter].id, 0x04, 1, emptyLoad, 0x00);
             //send this shit
 
@@ -388,4 +409,30 @@ boolean containsDevice(int deviceId) {
     }
   }
   return false;
+}
+
+void sensorSetup() {
+  pinMode(potPin, INPUT);
+}
+
+int readSensor() {
+  return analogRead(potPin);
+}
+
+void readSensorToCharTable(char *table) {
+  int sensorValue = readSensor();
+  String sensorValueAsString = String(sensorValue);
+
+  while (sensorValueAsString.length() < 16) {
+    sensorValueAsString += char (255);
+  }
+
+  char sensorValueAsCharTable[16] = "";
+  sensorValueAsString.toCharArray(sensorValueAsCharTable, sensorValueAsString.length());
+
+  strcpy(table, sensorValueAsCharTable);
+
+}
+
+void displaySetup() {
 }
