@@ -192,6 +192,12 @@ void loop() {
           char text[24] = "";
           frameToString(slaveFrame).toCharArray(text, 24);
           radio.write(&text, sizeof(text));
+
+
+          Serial.println("LEAVING F1, AWAITING COMMAND");
+
+          F1 = 0;
+          F2 = 1;
         }
       }
       /*Odbierz ramkę mastera z cyklu testowania obecności węzłów i odeślij swoją asap*/
@@ -291,7 +297,24 @@ void loop() {
       }
     }
     else if (IS_MASTER == 0) {
+      changeToReceive();
+      if (radio.available()) {
+        char received[24] = "";
+        radio.read(&received, sizeof(received));
+        masterFrame = stringToFrame(String(received));
 
+        Serial.print(frameToReadableString(masterFrame));
+        Serial.print("   ");
+        Serial.println(String(received));
+
+        if (masterFrame.fun == 0x03) {
+          Serial.println(trimLoadPadding(masterFrame.load));
+          F2 = 0;
+          changeToSend();
+          setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x0C, 1, masterFrame.load, 0x00);
+
+        }
+      }
       /*
          0x05
          0x08
@@ -463,6 +486,16 @@ void readSensorToCharTable(char *table) {
 
   strcpy(table, sensorValueAsCharTable);
 
+}
+
+String trimLoadPadding(char *table) {
+  String buf = "";
+  for (int i = 0; i < 16; i++) {
+    if (table[i] != char(255)) {
+      buf += table[i];
+    }
+  }
+  return buf;
 }
 
 void displaySetup() {

@@ -114,9 +114,9 @@ FRAME stringToFrame(String frameStr) {
 
   i2c.charVal = frameStr.charAt(4);
   frame.seq = i2c.intVal;
-
+  
   strBuf = frameStr.substring(5, 21);
-  strBuf.toCharArray(charBuf, 1);
+  strBuf.toCharArray(charBuf, 16);
   assignCharTable(frame.load, charBuf);
 
   frame.crc = frameStr.charAt(22);
