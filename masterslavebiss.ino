@@ -6,10 +6,10 @@
   O matko ten numer sekwencyjny to już trochę dużo. Jak payload będzie za duży to system musi podzielić go na mniejsze ramki i potem w tym numerze sekwencyjnym mu powiedzieć, że ej to jest pierwsza dopiero :(
   Chyba na razie go pominiemy i zobaczymy co dalej
 */
-#include "structs.h";
-#include <SPI.h>;
-#include <nRF24L01.h>;
-#include <RF24.h>;
+#include "structs.h"
+#include <SPI.h>
+#include <nRF24L01.h>
+#include <RF24.h>
 
 ////////////// Your sensor configuration here //////////////
 int potPin = A1;
@@ -30,7 +30,7 @@ int numOfDevices = 0;
 DEVOP deviceOpList[25];
 int DEVOPITER = 0;
 int deviceList[25];
-int DEVICE_ID = 8;
+int DEVICE_ID = 7;
 
 /* Faza wyboru typu urządzenia master/slave*/
 boolean F_CHOOSEMS = 1;
@@ -59,6 +59,7 @@ void setup() {
   setupEmptyDevOpTable();
   F1 = 0;
   F2 = 0;
+  numOfDevices = 0;
   F_CHOOSEMS = 1;
   Serial.begin(9600);
   masterFrame = initFrame();
@@ -75,6 +76,7 @@ void setup() {
 
 void loop() {
   if (F_CHOOSEMS) {
+    numOfDevices = 0;
     recvWithEndMarker();
     showNewData();
     if (ms_choice == 'M' || ms_choice == 'm') {
@@ -103,7 +105,6 @@ void loop() {
         if (DEBUG_INFO) {
           Serial.println("[DEBUG] MASTER: BEGIN  SCAN");
         }
-        numOfDevices = 0;
         for (int i = 1; i <= 26; i++) {
           if (i != DEVICE_ID && i != 26) {
             setFrame(masterFrame, DEVICE_ID, i, 0x01, 1, emptyLoad, 0x00);
@@ -128,7 +129,7 @@ void loop() {
                     Serial.println(i);
                   }
                   deviceList[numOfDevices] = i;
-                  numOfDevices += 1;
+                  numOfDevices = numOfDevices + 1;
                 }
               }
             }
@@ -140,9 +141,21 @@ void loop() {
                 Serial.print(deviceList[j]);
                 Serial.print(" ");
               }
-              Serial.println("");
+              if (DEBUG_INFO) {
+                Serial.println("");
+                Serial.print("Found ");
+                Serial.print(numOfDevices);
+                Serial.println(" devices.");
+              }
             }
             //end scan
+            if (DEBUG_INFO) {
+              Serial.println("FINISHED SCANNING");
+              Serial.println("WAITING FOR USER INPUT.");
+              Serial.println("FOLLOW THE STRUCTURE: DD-OO,DD-OO,DD-OO,..");
+              Serial.println("WHERE DD - DEVICE NUMBER");
+              Serial.println("WHERE OO - OPERATION NUMBER");
+            }
             SCAN_BEGIN = 0;
             GETOPS = 1;
             /*Przechodzimy do sekcji z ustalaniem kolejności zadania, nie mam pomysłu jeszcze na to*/
@@ -158,6 +171,9 @@ void loop() {
             GETOPS = 0;
             F1 = 0;
             F2 = 1;
+            if (DEBUG_INFO) {
+              Serial.println("LEAVING F1");
+            }
           }
         }
       }
@@ -189,7 +205,6 @@ void loop() {
       boolean shouldWork = true;
       int devOpIter = 0;
       while (shouldWork) {
-
         if (deviceOpList[devOpIter].id == -1) {
           //nie ma więcej operacji w liście, zakończ pętlę
           shouldWork = false;
@@ -201,14 +216,13 @@ void loop() {
         /*
            Sprawdź czy master ma w swojej tablicy urządzeń takie urządzenie, które wpisał użytkownik
         */
-        
+
         if (containsDevice(deviceOpList[devOpIter].id)) {
           /*
             rób rzeczy
           */
 
           if (deviceOpList[devOpIter].nextOp == 3) { //0x03 wysłanie danych bez zabezpieczeń (M > S)
-            Serial.println("HALKO");
             changeToSend();
 
 
@@ -221,11 +235,13 @@ void loop() {
             readSensorToCharTable(paddedSensorValue);
 
 
-            for (int i = 0; i < 16; i++) {
-              Serial.print(paddedSensorValue[i]);
+            if (DEBUG_INFO) {
+              Serial.print("sending value (with padding): ");
+              for (int i = 0; i < 16; i++) {
+                Serial.print(paddedSensorValue[i]);
+              }
+              Serial.println(" ");
             }
-            Serial.println(" ");
-
 
             char load[16]; //insert load instead of emptyLoad of course
             setFrame(masterFrame, DEVICE_ID, deviceOpList[devOpIter].id, 0x03, 1, paddedSensorValue, 0x00);
@@ -363,7 +379,7 @@ void changeToSend() {
   Mam nadzieję, że nie będę tej decyzji żałował.
 */
 void setupEmptyTable() {
-  for (int i = 0; i <= 16; i++) {
+  for (int i = 0; i < 16; i++) {
     emptyLoad[i] = (char) 255;
   }
 }
@@ -419,10 +435,9 @@ void parseOpString(String input) {
 
 boolean containsDevice(int deviceId) {
   for (int i = 0; i < numOfDevices; i++) {
-    Serial.println(deviceList[i]);
     if (deviceList[i] == deviceId) {
       return true;
-    } 
+    }
   }
   return false;
 }
