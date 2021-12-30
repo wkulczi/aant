@@ -30,7 +30,7 @@ int numOfDevices = 0;
 DEVOP deviceOpList[25];
 int DEVOPITER = 0;
 int deviceList[25];
-int DEVICE_ID = 7;
+int DEVICE_ID = 8;
 
 /* Faza wyboru typu urządzenia master/slave*/
 boolean F_CHOOSEMS = 1;
@@ -252,6 +252,13 @@ void loop() {
             char load[16]; //insert load instead of emptyLoad of course
             setFrame(masterFrame, DEVICE_ID, deviceOpList[devOpIter].id, 0x03, 1, paddedSensorValue, 0x00);
 
+            //send frame
+            char text[24] = "";
+            frameToString(masterFrame).toCharArray(text, 24);
+            Serial.println(frameToString(masterFrame));
+            radio.write(&text, sizeof(text));
+
+            //receive ok message
 
           }
           if (deviceOpList[devOpIter].nextOp == 4) { //0x04 żądanie przesyłania danych ze Slave bez zabezpieczeń (M > S)
