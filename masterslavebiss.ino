@@ -1,16 +1,10 @@
-/*
-  Czyli te ID to symulowane są, na sztywno wpisane w kodzie
-  W tym punkcie piątym jak jest scenariusz to jest <adres>-<operacja> a nie <adres>-<adres>
-  I tyle, chyba na razie wszystko jasne
-
-  O matko ten numer sekwencyjny to już trochę dużo. Jak payload będzie za duży to system musi podzielić go na mniejsze ramki i potem w tym numerze sekwencyjnym mu powiedzieć, że ej to jest pierwsza dopiero :(
-  Chyba na razie go pominiemy i zobaczymy co dalej
-*/
+#include <FastCRC.h>
 #include "structs.h"
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
 
+FastCRC8 CRC8;
 ////////////// Your sensor configuration here //////////////
 int potPin = A1;
 
@@ -127,7 +121,7 @@ void loop()
         {
           if (i != DEVICE_ID && i != 26)
           {
-            setFrame(masterFrame, DEVICE_ID, i, 0x01, 1, emptyLoad, 0x00);
+            setFrame(masterFrame, DEVICE_ID, i, 0x01, 1, emptyLoad, 0);
             // send frame
             changeToSend();
             char text[24] = "";
@@ -227,7 +221,7 @@ void loop()
 
         if (masterFrame.slaveId == DEVICE_ID && masterFrame.fun == 0x01)
         {
-          setFrame(slaveFrame, DEVICE_ID, DEVICE_ID, 0x02, 1, emptyLoad, 0x00);
+          setFrame(slaveFrame, DEVICE_ID, DEVICE_ID, 0x02, 1, emptyLoad, 0);
           changeToSend();
           // send frame
           char text[24] = "";
@@ -296,7 +290,7 @@ void loop()
             }
 
             char load[16]; // insert load instead of emptyLoad of course
-            setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x03, 1, paddedSensorValue, 0x00);
+            setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x03, 1, paddedSensorValue, 0);
 
             // send frame
             char text[24] = "";
@@ -336,12 +330,10 @@ void loop()
                 Serial.print(deviceOpList[f2devOpIter].id);
                 Serial.println(" not received!");
               }
-              Serial.println("waiting for ACK timeout, retrying operation");
+              Serial.println("waiting for ACK timed out, retrying operation");
               F2_SETUP = 1;
             }
           }
-
-          // receive ok message
         }
         if (deviceOpList[f2devOpIter].nextOp == 4)
         { // 0x04 żądanie przesyłania danych ze Slave bez zabezpieczeń (M > S)
@@ -349,7 +341,7 @@ void loop()
           {
             // todo może dodaj fazę WAIT4ACK czy coś
             changeToSend();
-            setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x04, 1, emptyLoad, 0x00);
+            setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x04, 1, emptyLoad, 0);
             char text[24] = "";
             frameToString(masterFrame).toCharArray(text, 24);
             Serial.println(frameToReadableString(masterFrame));
@@ -384,7 +376,7 @@ void loop()
           {
             // send ACK
             changeToSend();
-            setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x0C, 1, slaveFrame.load, 0x00);
+            setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x0C, 1, slaveFrame.load, 0);
             char text[24] = "";
             Serial.print("Sending ack from master: ");
             Serial.println(frameToReadableString(masterFrame));
@@ -393,12 +385,67 @@ void loop()
             F2_SETUP = 1;
             f2devOpIter += 1;
           }
-
-
         }
+        // 0x06 wysłanie danych z CRC8 (M > S)
         if (deviceOpList[f2devOpIter].nextOp == 6)
-        { // 0x06 wysłanie danych z CRC8 (M > S)
-          // nah man, not happening
+        {
+          if (F2_SETUP)
+          {
+            F2_WRITE = 1;
+            F2_READ = 0;
+            F2_SETUP = 0;
+          }
+          if (F2_WRITE)
+          {
+            // send data with CRC
+            changeToSend();
+
+            int arraySize = 16;
+            char paddedSensorValue[16] = "";
+            readSensorToCharTable(paddedSensorValue);
+
+            uint8_t crc8val = CRC8.smbus(paddedSensorValue, sizeof(paddedSensorValue));
+            Serial.println(crc8val);
+            setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x06, 1, paddedSensorValue, crc8val);
+            char text[24] = "";
+            frameToString(masterFrame).toCharArray(text, 24);
+            radio.write(&text, sizeof(text));
+
+            F2_WRITE = 0;
+            F2_READ = 1;
+          }
+          if (F2_READ)
+          {
+            changeToReceive();
+            if (radio.available())
+            {
+              char received[24] = "";
+              radio.read(&received, sizeof(received));
+              slaveFrame = stringToFrame(String(received));
+              Serial.println(frameToReadableString(slaveFrame));
+              if (slaveFrame.slaveId == deviceOpList[f2devOpIter].id && slaveFrame.fun == 0x0C)
+              {
+                if (DEBUG_INFO)
+                {
+                  Serial.println("[DEBUG] received ACK from slave");
+                }
+                F2_WRITE = 0;
+                f2devOpIter += 1;
+                F2_SETUP = 1;
+              }
+            }
+            if (millis() - sendTimestamp > WAIT_FOR_ACK_TIME)
+            {
+              if (DEBUG_INFO)
+              {
+                Serial.print("[DEBUG] ACK ");
+                Serial.print(deviceOpList[f2devOpIter].id);
+                Serial.println(" not received!");
+              }
+              Serial.println("waiting for ACK timed out, retrying operation");
+              F2_SETUP = 1;
+            }
+          }
         }
         if (deviceOpList[f2devOpIter].nextOp == 7)
         { // 0x07 żądanie przesyłania danych ze Slave z CRC8 (M > S).
@@ -433,7 +480,8 @@ void loop()
           char received[24] = "";
           radio.read(&received, sizeof(received));
           masterFrame = stringToFrame(String(received));
-          if (masterFrame.slaveId == DEVICE_ID) {
+          if (masterFrame.slaveId == DEVICE_ID)
+          {
             IS_BUSY = 1;
             Serial.println("received frame for me, busy now");
           }
@@ -455,13 +503,13 @@ void loop()
           if (F2_WRITE)
           {
             // send ACK
-            setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x0C, 1, masterFrame.load, 0x00);
+            setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x0C, 1, masterFrame.load, 0);
             char text[24] = "";
             frameToString(slaveFrame).toCharArray(text, 24);
             radio.write(&text, sizeof(text));
             F2_SETUP = 1;
+            IS_BUSY = 0;
           }
-          IS_BUSY = 0;
         }
         if (masterFrame.fun == 0x04)
         {
@@ -474,7 +522,7 @@ void loop()
             char paddedSensorValue[16] = "";
             readSensorToCharTable(paddedSensorValue);
             char load[16];
-            setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x05, 1, paddedSensorValue, 0x00);
+            setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x05, 1, paddedSensorValue, 0);
 
             char text[24] = "";
             frameToString(slaveFrame).toCharArray(text, 24);
@@ -488,9 +536,10 @@ void loop()
             sendTimestamp = millis();
             Serial.println("sent value from slave, 0x04");
           }
-          if (F2_READ) //wait for ack
+          if (F2_READ) // wait for ack
           {
-            if (radio.available()) {
+            if (radio.available())
+            {
               char received[24] = "";
               radio.read(&received, sizeof(received));
               masterFrame = stringToFrame(String(received));
@@ -503,10 +552,48 @@ void loop()
                 }
                 F2_SETUP = 1;
                 F2_READ = 0;
+                IS_BUSY = 0;
               }
-              IS_BUSY = 0;
             }
           }
+        }
+      }
+      if (masterFrame.fun == 0x06)
+      {
+        if (F2_SETUP)
+        {
+          F2_SETUP = 0;
+          F2_READ = 1;
+          F2_WRITE = 0;
+        }
+        if (F2_READ)
+        {
+          Serial.print("Received value: ");
+          Serial.println(trimLoadPadding(masterFrame.load));
+
+          if (checkCrc(masterFrame.load, masterFrame.crc))
+          {
+            Serial.println("crc is ok.");
+            // read data with crc
+            // if crc is right:
+            F2_READ = 0;
+            changeToSend();
+            F2_WRITE = 1;
+          }
+          else
+          {
+            Serial.println("CRC WRONG :((");
+          }
+        }
+        if (F2_WRITE)
+        {
+          // send ACK
+          setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x0C, 1, masterFrame.load, 0);
+          char text[24] = "";
+          frameToString(slaveFrame).toCharArray(text, 24);
+          radio.write(&text, sizeof(text));
+          F2_SETUP = 1;
+          IS_BUSY = 0;
         }
       }
       /*
@@ -713,6 +800,20 @@ String trimLoadPadding(char *table)
     }
   }
   return buf;
+}
+
+// table in bytes!
+boolean checkCrc(char *table, uint8_t receivedCrc)
+{
+  uint32_t crc = CRC8.smbus(table, sizeof(bytes));
+  if (receivedCrc == crc)
+  {
+    return true;
+  }
+  else
+  {
+    return false;
+  }
 }
 
 void displaySetup()

@@ -37,7 +37,7 @@ FRAME initFrame() {
   return frame;
 }
 
-void setFrame(FRAME &frame, int masterId, int slaveId, byte fun, int seq, char payload[16], byte crc) {
+void setFrame(FRAME &frame, int masterId, int slaveId, byte fun, int seq, char payload[16], uint8_t crc) {
   frame.masterId = masterId;
   frame.slaveId = slaveId;
   frame.fun = fun;
@@ -45,9 +45,9 @@ void setFrame(FRAME &frame, int masterId, int slaveId, byte fun, int seq, char p
 
   assignCharTable(frame.load, payload);
 
-  byteToChar b2c;
-  b2c.byteVal = crc;
-  frame.crc = b2c.charVal;
+  uintToChar u2c;
+  u2c.uintVal = crc;
+  frame.crc = u2c.charVal;
 
 
 }

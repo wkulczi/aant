@@ -36,3 +36,8 @@ struct DEVOP {
      int seqnum
   */
 };
+
+typedef union {
+  uint8_t uintVal;
+  char charVal;
+} uintToChar;
