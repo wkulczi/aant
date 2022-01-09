@@ -46,6 +46,7 @@ boolean F2 = 0;
 boolean F2_SETUP;
 boolean F2_READ;
 boolean F2_WRITE;
+boolean IS_BUSY = 0;
 boolean DEBUG_INFO = 1;
 
 unsigned long sendTimestamp;
@@ -237,6 +238,7 @@ void loop()
 
           F1 = 0;
           F2 = 1;
+          IS_BUSY = 0;
         }
       }
       /*Odbierz ramkę mastera z cyklu testowania obecności węzłów i odeślij swoją asap*/
@@ -343,8 +345,9 @@ void loop()
         }
         if (deviceOpList[f2devOpIter].nextOp == 4)
         { // 0x04 żądanie przesyłania danych ze Slave bez zabezpieczeń (M > S)
-          if (F2_SETUP) {
-            //todo może dodaj fazę WAIT4ACK czy coś
+          if (F2_SETUP)
+          {
+            // todo może dodaj fazę WAIT4ACK czy coś
             changeToSend();
             setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x04, 1, emptyLoad, 0x00);
             char text[24] = "";
@@ -356,7 +359,8 @@ void loop()
             F2_READ = 1;
             F2_WRITE = 0;
           }
-          if (F2_READ) {
+          if (F2_READ)
+          {
             changeToReceive();
             if (radio.available())
             {
@@ -373,10 +377,13 @@ void loop()
               }
             }
           }
-          if (F2_WRITE) {
-            //send ACK
-            setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x0C, 1, masterFrame.load, 0x00);
+          if (F2_WRITE)
+          {
+            // send ACK
+            setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x0C, 1, slaveFrame.load, 0x00);
             char text[24] = "";
+            Serial.print("Sending ack from master: ");
+            Serial.println(frameToReadableString(masterFrame));
             frameToString(slaveFrame).toCharArray(text, 24);
             radio.write(&text, sizeof(text));
             F2_SETUP = 1;
@@ -418,13 +425,21 @@ void loop()
     }
     else if (IS_MASTER == 0)
     {
-      changeToReceive();
-      if (radio.available())
+      if (IS_BUSY == 0)
       {
-        char received[24] = "";
-        radio.read(&received, sizeof(received));
-        masterFrame = stringToFrame(String(received));
-
+        changeToReceive();
+        if (radio.available())
+        {
+          char received[24] = "";
+          radio.read(&received, sizeof(received));
+          masterFrame = stringToFrame(String(received));
+          if (masterFrame.slaveId == DEVICE_ID) {
+            IS_BUSY = 1;
+          }
+        }
+      }
+      else
+      {
         if (masterFrame.fun == 0x03)
         {
           if (F2_SETUP)
@@ -438,24 +453,27 @@ void loop()
           }
           if (F2_WRITE)
           {
-            //send ACK
+            // send ACK
             setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x0C, 1, masterFrame.load, 0x00);
             char text[24] = "";
             frameToString(slaveFrame).toCharArray(text, 24);
             radio.write(&text, sizeof(text));
             F2_SETUP = 1;
           }
-          // F2 = 0;
+          IS_BUSY = 0;
         }
         if (masterFrame.fun == 0x04)
         {
-          if (F2_SETUP) {
+          if (F2_SETUP)
+          {
+            // fetch value
+            // send value
             changeToSend();
             int arraySize = 16;
             char paddedSensorValue[16] = "";
             readSensorToCharTable(paddedSensorValue);
             char load[16]; // insert load instead of emptyLoad of course
-            setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID , 0x05, 1, paddedSensorValue, 0x00);
+            setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x05, 1, paddedSensorValue, 0x00);
 
             char text[24] = "";
             frameToString(slaveFrame).toCharArray(text, 24);
@@ -468,7 +486,9 @@ void loop()
             sendTimestamp = millis();
             Serial.println("sent value from slave, 0x04");
           }
-          if (F2_READ) {
+          if (F2_READ)
+            // wait for ack
+          {
             changeToReceive();
             char received[24] = "";
             radio.read(&received, sizeof(received));
@@ -483,14 +503,10 @@ void loop()
               F2_SETUP = 1;
               F2_READ = 0;
             }
-            // wait for ack
+            IS_BUSY = 0;
           }
-          // fetch value
-          // send value
-          // wait for 0x0c
         }
       }
-
       /*
          0x05
          0x08
