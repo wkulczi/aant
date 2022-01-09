@@ -372,6 +372,9 @@ void loop()
               {
                 Serial.print("Received value: ");
                 Serial.println(trimLoadPadding(slaveFrame.load));
+                /////////////////////////
+                // show data on screen //
+                /////////////////////////
                 F2_READ = 0;
                 F2_WRITE = 1;
               }
@@ -380,6 +383,7 @@ void loop()
           if (F2_WRITE)
           {
             // send ACK
+            changeToSend();
             setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x0C, 1, slaveFrame.load, 0x00);
             char text[24] = "";
             Serial.print("Sending ack from master: ");
@@ -390,11 +394,7 @@ void loop()
             f2devOpIter += 1;
           }
 
-          /// wait for signal
 
-          /////////////////////////
-          // show data on screen //
-          /////////////////////////
         }
         if (deviceOpList[f2devOpIter].nextOp == 6)
         { // 0x06 wysłanie danych z CRC8 (M > S)
