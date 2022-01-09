@@ -38,6 +38,11 @@ struct DEVOP {
 };
 
 typedef union {
+  char charVals[16];
+  uint8_t uintVals[16];
+} charsToUints;
+
+typedef union {
   uint8_t uintVal;
   char charVal;
 } uintToChar;

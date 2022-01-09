@@ -404,7 +404,12 @@ void loop()
             char paddedSensorValue[16] = "";
             readSensorToCharTable(paddedSensorValue);
 
-            uint8_t crc8val = CRC8.smbus(paddedSensorValue, sizeof(paddedSensorValue));
+            charsToUints c2u;
+            for (int i = 0; i < sizeof(paddedSensorValue); i++) {
+              c2u.charVals[i] = paddedSensorValue[i];
+            }
+
+            uint8_t crc8val = CRC8.smbus(c2u.uintVals, sizeof(c2u.uintVals));
             Serial.println(crc8val);
             setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x06, 1, paddedSensorValue, crc8val);
             char text[24] = "";
@@ -571,7 +576,12 @@ void loop()
           Serial.print("Received value: ");
           Serial.println(trimLoadPadding(masterFrame.load));
 
-          if (checkCrc(masterFrame.load, masterFrame.crc))
+          charsToUints c2u;
+          for (int i = 0; i < sizeof(masterFrame.load); i++) {
+            c2u.charVals[i] = masterFrame.load[i];
+          }
+          
+          if (checkCrc(c2u.uintVals, masterFrame.crc))
           {
             Serial.println("crc is ok.");
             // read data with crc
@@ -803,9 +813,9 @@ String trimLoadPadding(char *table)
 }
 
 // table in bytes!
-boolean checkCrc(char *table, uint8_t receivedCrc)
+boolean checkCrc(uint8_t *table, uint8_t receivedCrc)
 {
-  uint32_t crc = CRC8.smbus(table, sizeof(bytes));
+  uint32_t crc = CRC8.smbus(table, sizeof(table));
   if (receivedCrc == crc)
   {
     return true;
