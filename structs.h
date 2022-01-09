@@ -5,7 +5,7 @@ struct FRAME {
   byte fun;
   int seq;
   char load[16];
-  char crc; //moze byte, do ustalenia pozniej
+  uint8_t crc; //moze byte, do ustalenia pozniej
 };
 
 typedef union {

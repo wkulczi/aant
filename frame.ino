@@ -45,10 +45,7 @@ void setFrame(FRAME &frame, int masterId, int slaveId, byte fun, int seq, char p
 
   assignCharTable(frame.load, payload);
 
-  uintToChar u2c;
-  u2c.uintVal = crc;
-  frame.crc = u2c.charVal;
-
+  frame.crc = crc;
 
 }
 
@@ -98,7 +95,6 @@ FRAME stringToFrame(String frameStr) {
   FRAME frame;
   String strBuf = "";
   char charBuf[16] = {(char) 0};
-
   frame.preamble = frameStr.charAt(0);
 
   intToChar i2c;
@@ -114,12 +110,14 @@ FRAME stringToFrame(String frameStr) {
 
   i2c.charVal = frameStr.charAt(4);
   frame.seq = i2c.intVal;
-  
+
   strBuf = frameStr.substring(5, 21);
   strBuf.toCharArray(charBuf, 16);
   assignCharTable(frame.load, charBuf);
 
-  frame.crc = frameStr.charAt(22);
+  uintToChar u2c;
+  u2c.charVal =  frameStr.charAt(frameStr.length() - 1);
+  frame.crc = u2c.uintVal;
 
   return frame;
 }

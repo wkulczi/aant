@@ -45,7 +45,7 @@ boolean DEBUG_INFO = 1;
 
 unsigned long sendTimestamp;
 
-char emptyLoad[16] = {(char)255};
+char emptyLoad[16] = {(char)45};
 
 unsigned long WAIT_FOR_ACK_TIME = 2000;
 
@@ -123,6 +123,7 @@ void loop()
           {
             setFrame(masterFrame, DEVICE_ID, i, 0x01, 1, emptyLoad, 0);
             // send frame
+            slaveFrame = stringToFrame(frameToString(masterFrame));
             changeToSend();
             char text[24] = "";
             frameToString(masterFrame).toCharArray(text, 24);
@@ -161,18 +162,18 @@ void loop()
             if (numOfDevices > 0)
             {
               // todo rozwiąż zagadkę dlaczego numOfDevices w którymś miejscu wskakuje do wartości 3
-              //               Serial.print("Found devices with ids: ");
-              //               for (int j = 0; j < numOfDevices; j++) {
-              //                 Serial.print(deviceList[j]);
-              //                 Serial.print(" ");
-              //               }
-              if (DEBUG_INFO)
-              {
-                Serial.println("");
-                Serial.print("Found ");
-                Serial.print(numOfDevices);
-                Serial.println(" devices.");
+              Serial.print("Found devices with ids: ");
+              for (int j = 0; j < numOfDevices; j++) {
+                Serial.print(deviceList[j]);
+                Serial.print(" ");
               }
+              //              if (DEBUG_INFO)
+              //              {
+              //                Serial.println("");
+              //                Serial.print("Found ");
+              //                Serial.print(numOfDevices);
+              //                Serial.println(" devices.");
+              //              }
             }
             // end scan
             if (DEBUG_INFO)
@@ -185,7 +186,6 @@ void loop()
             }
             SCAN_BEGIN = 0;
             GETOPS = 1;
-            /*Przechodzimy do sekcji z ustalaniem kolejności zadania, nie mam pomysłu jeszcze na to*/
           }
         }
       }
@@ -281,12 +281,12 @@ void loop()
 
             if (DEBUG_INFO)
             {
-              //              Serial.print("sending value (with padding): ");
+              Serial.print("sending value (with padding): ");
               for (int i = 0; i < 16; i++)
               {
-                //                Serial.print(paddedSensorValue[i]);
+                Serial.print(paddedSensorValue[i]);
               }
-              //              Serial.println(" ");
+              Serial.println(" ");
             }
 
             char load[16]; // insert load instead of emptyLoad of course
@@ -391,6 +391,7 @@ void loop()
         {
           if (F2_SETUP)
           {
+            Serial.println("0x06 letsgoo");
             F2_WRITE = 1;
             F2_READ = 0;
             F2_SETUP = 0;
@@ -403,16 +404,19 @@ void loop()
             int arraySize = 16;
             char paddedSensorValue[16] = "";
             readSensorToCharTable(paddedSensorValue);
-
+            
             charsToUints c2u;
             for (int i = 0; i < sizeof(paddedSensorValue); i++) {
               c2u.charVals[i] = paddedSensorValue[i];
             }
 
             uint8_t crc8val = CRC8.smbus(c2u.uintVals, sizeof(c2u.uintVals));
+            Serial.print("crc val: ");
             Serial.println(crc8val);
             setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x06, 1, paddedSensorValue, crc8val);
+            
             char text[24] = "";
+            
             frameToString(masterFrame).toCharArray(text, 24);
             radio.write(&text, sizeof(text));
 
@@ -580,7 +584,7 @@ void loop()
           for (int i = 0; i < sizeof(masterFrame.load); i++) {
             c2u.charVals[i] = masterFrame.load[i];
           }
-          
+
           if (checkCrc(c2u.uintVals, masterFrame.crc))
           {
             Serial.println("crc is ok.");
@@ -702,7 +706,7 @@ void setupEmptyTable()
 {
   for (int i = 0; i < 16; i++)
   {
-    emptyLoad[i] = (char)255;
+    emptyLoad[i] = (char)45;
   }
 }
 
@@ -788,13 +792,15 @@ void readSensorToCharTable(char *table)
   int sensorValue = readSensor();
   String sensorValueAsString = String(sensorValue);
 
-  while (sensorValueAsString.length() < 16)
+  while (sensorValueAsString.length() <= 16)
   {
-    sensorValueAsString += char(255);
+    sensorValueAsString += char(45);
   }
 
+  Serial.println(sensorValueAsString);
+
   char sensorValueAsCharTable[16] = "";
-  sensorValueAsString.toCharArray(sensorValueAsCharTable, sensorValueAsString.length());
+  sensorValueAsString.toCharArray(sensorValueAsCharTable, 16);
 
   strcpy(table, sensorValueAsCharTable);
 }
@@ -804,7 +810,7 @@ String trimLoadPadding(char *table)
   String buf = "";
   for (int i = 0; i < 16; i++)
   {
-    if (table[i] != char(255))
+    if (table[i] != char(45))
     {
       buf += table[i];
     }
