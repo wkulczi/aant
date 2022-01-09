@@ -21,7 +21,7 @@ DEVOP deviceOpList[25];
 int DEVOPITER = 0;
 int f2devOpIter = 0;
 int deviceList[25];
-int DEVICE_ID = 6;
+int DEVICE_ID = 5;
 
 /* Faza wyboru typu urządzenia master/slave*/
 boolean F_CHOOSEMS = 1;
@@ -404,7 +404,7 @@ void loop()
             int arraySize = 16;
             char paddedSensorValue[16] = "";
             readSensorToCharTable(paddedSensorValue);
-            
+
             charsToUints c2u;
             for (int i = 0; i < sizeof(paddedSensorValue); i++) {
               c2u.charVals[i] = paddedSensorValue[i];
@@ -414,9 +414,9 @@ void loop()
             Serial.print("crc val: ");
             Serial.println(crc8val);
             setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x06, 1, paddedSensorValue, crc8val);
-            
+
             char text[24] = "";
-            
+
             frameToString(masterFrame).toCharArray(text, 24);
             radio.write(&text, sizeof(text));
 
@@ -577,18 +577,18 @@ void loop()
         }
         if (F2_READ)
         {
-          Serial.print("Received value: ");
-          Serial.println(trimLoadPadding(masterFrame.load));
-
           charsToUints c2u;
           for (int i = 0; i < sizeof(masterFrame.load); i++) {
             c2u.charVals[i] = masterFrame.load[i];
           }
-
-          if (checkCrc(c2u.uintVals, masterFrame.crc))
+          uint8_t crc = CRC8.smbus(c2u.uintVals, sizeof(c2u.uintVals));
+          if (crc == masterFrame.crc)
           {
             Serial.println("crc is ok.");
+
             // read data with crc
+            Serial.print("Received value: ");
+            Serial.println(trimLoadPadding(masterFrame.load));
             // if crc is right:
             F2_READ = 0;
             changeToSend();
@@ -783,8 +783,7 @@ void sensorSetup()
 
 int readSensor()
 {
-  //  return analogRead(potPin);
-  return 4;
+    return analogRead(potPin);
 }
 
 void readSensorToCharTable(char *table)
@@ -816,20 +815,6 @@ String trimLoadPadding(char *table)
     }
   }
   return buf;
-}
-
-// table in bytes!
-boolean checkCrc(uint8_t *table, uint8_t receivedCrc)
-{
-  uint32_t crc = CRC8.smbus(table, sizeof(table));
-  if (receivedCrc == crc)
-  {
-    return true;
-  }
-  else
-  {
-    return false;
-  }
 }
 
 void displaySetup()
