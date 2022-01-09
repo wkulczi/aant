@@ -27,7 +27,7 @@ DEVOP deviceOpList[25];
 int DEVOPITER = 0;
 int f2devOpIter = 0;
 int deviceList[25];
-int DEVICE_ID = 7;
+int DEVICE_ID = 6;
 
 /* Faza wyboru typu urządzenia master/slave*/
 boolean F_CHOOSEMS = 1;
@@ -435,6 +435,7 @@ void loop()
           masterFrame = stringToFrame(String(received));
           if (masterFrame.slaveId == DEVICE_ID) {
             IS_BUSY = 1;
+            Serial.println("received frame for me, busy now");
           }
         }
       }
@@ -472,7 +473,7 @@ void loop()
             int arraySize = 16;
             char paddedSensorValue[16] = "";
             readSensorToCharTable(paddedSensorValue);
-            char load[16]; // insert load instead of emptyLoad of course
+            char load[16];
             setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x05, 1, paddedSensorValue, 0x00);
 
             char text[24] = "";
@@ -480,30 +481,31 @@ void loop()
             Serial.println(frameToReadableString(slaveFrame));
             radio.write(&text, sizeof(text));
 
+            F2_SETUP = 0;
             F2_WRITE = 0;
             changeToReceive();
             F2_READ = 1;
             sendTimestamp = millis();
             Serial.println("sent value from slave, 0x04");
           }
-          if (F2_READ)
-            // wait for ack
+          if (F2_READ) //wait for ack
           {
-            changeToReceive();
-            char received[24] = "";
-            radio.read(&received, sizeof(received));
-            masterFrame = stringToFrame(String(received));
-            Serial.println(frameToReadableString(masterFrame));
-            if (masterFrame.fun == 0x0C)
-            {
-              if (DEBUG_INFO)
+            if (radio.available()) {
+              char received[24] = "";
+              radio.read(&received, sizeof(received));
+              masterFrame = stringToFrame(String(received));
+              Serial.println(frameToReadableString(masterFrame));
+              if (masterFrame.fun == 0x0C)
               {
-                Serial.println("[DEBUG] received ACK from master");
+                if (DEBUG_INFO)
+                {
+                  Serial.println("[DEBUG] received ACK from master");
+                }
+                F2_SETUP = 1;
+                F2_READ = 0;
               }
-              F2_SETUP = 1;
-              F2_READ = 0;
+              IS_BUSY = 0;
             }
-            IS_BUSY = 0;
           }
         }
       }
