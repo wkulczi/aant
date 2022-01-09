@@ -127,13 +127,13 @@ void loop()
           if (i != DEVICE_ID && i != 26)
           {
             setFrame(masterFrame, DEVICE_ID, i, 0x01, 1, emptyLoad, 0x00);
-            //send frame
+            // send frame
             changeToSend();
             char text[24] = "";
             frameToString(masterFrame).toCharArray(text, 24);
             radio.write(&text, sizeof(text));
 
-            //wait to receive response
+            // wait to receive response
             changeToReceive();
             sendTimestamp = millis();
             while (millis() - sendTimestamp < 200)
@@ -165,12 +165,12 @@ void loop()
           {
             if (numOfDevices > 0)
             {
-              //todo rozwiąż zagadkę dlaczego numOfDevices w którymś miejscu wskakuje do wartości 3
-              //              Serial.print("Found devices with ids: ");
-              //              for (int j = 0; j < numOfDevices; j++) {
-              //                Serial.print(deviceList[j]);
-              //                Serial.print(" ");
-              //              }
+              // todo rozwiąż zagadkę dlaczego numOfDevices w którymś miejscu wskakuje do wartości 3
+              //               Serial.print("Found devices with ids: ");
+              //               for (int j = 0; j < numOfDevices; j++) {
+              //                 Serial.print(deviceList[j]);
+              //                 Serial.print(" ");
+              //               }
               if (DEBUG_INFO)
               {
                 Serial.println("");
@@ -179,7 +179,7 @@ void loop()
                 Serial.println(" devices.");
               }
             }
-            //end scan
+            // end scan
             if (DEBUG_INFO)
             {
               Serial.println("FINISHED SCANNING");
@@ -228,7 +228,7 @@ void loop()
         {
           setFrame(slaveFrame, DEVICE_ID, DEVICE_ID, 0x02, 1, emptyLoad, 0x00);
           changeToSend();
-          //send frame
+          // send frame
           char text[24] = "";
           frameToString(slaveFrame).toCharArray(text, 24);
           radio.write(&text, sizeof(text));
@@ -246,10 +246,12 @@ void loop()
       Serial.println("ERR, are you a slave or a master?");
     }
   }
-  if (F2) {
+  if (F2)
+  {
     if (IS_MASTER == 1)
     {
-      if (deviceOpList[f2devOpIter].id == -1) {
+      if (deviceOpList[f2devOpIter].id == -1)
+      {
         F2 = 0;
         Serial.println("leaving F2");
       }
@@ -262,13 +264,15 @@ void loop()
             rób rzeczy
         */
         if (deviceOpList[f2devOpIter].nextOp == 3)
-        { //0x03 wysłanie danych bez zabezpieczeń (M > S)
-          if (F2_SETUP) {
+        { // 0x03 wysłanie danych bez zabezpieczeń (M > S)
+          if (F2_SETUP)
+          {
             F2_READ = 0;
             F2_WRITE = 1;
             F2_SETUP = 0;
           }
-          if (F2_WRITE) {
+          if (F2_WRITE)
+          {
             changeToSend();
 
             /////////////////////////////////
@@ -281,18 +285,18 @@ void loop()
 
             if (DEBUG_INFO)
             {
-//              Serial.print("sending value (with padding): ");
+              //              Serial.print("sending value (with padding): ");
               for (int i = 0; i < 16; i++)
               {
-//                Serial.print(paddedSensorValue[i]);
+                //                Serial.print(paddedSensorValue[i]);
               }
-//              Serial.println(" ");
+              //              Serial.println(" ");
             }
 
-            char load[16]; //insert load instead of emptyLoad of course
+            char load[16]; // insert load instead of emptyLoad of course
             setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x03, 1, paddedSensorValue, 0x00);
 
-            //send frame
+            // send frame
             char text[24] = "";
             frameToString(masterFrame).toCharArray(text, 24);
             Serial.println(frameToReadableString(masterFrame));
@@ -302,9 +306,11 @@ void loop()
             F2_READ = 1;
             sendTimestamp = millis();
           }
-          if (F2_READ) {
+          if (F2_READ)
+          {
             changeToReceive();
-            if (radio.available()) {
+            if (radio.available())
+            {
               char received[24] = "";
               radio.read(&received, sizeof(received));
               slaveFrame = stringToFrame(String(received));
@@ -333,46 +339,77 @@ void loop()
             }
           }
 
-
-
-          //receive ok message
+          // receive ok message
         }
         if (deviceOpList[f2devOpIter].nextOp == 4)
-        { //0x04 żądanie przesyłania danych ze Slave bez zabezpieczeń (M > S)
+        { // 0x04 żądanie przesyłania danych ze Slave bez zabezpieczeń (M > S)
+          if (F2_SETUP) {
+            //todo może dodaj fazę WAIT4ACK czy coś
+            changeToSend();
+            setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x04, 1, emptyLoad, 0x00);
+            char text[24] = "";
+            frameToString(masterFrame).toCharArray(text, 24);
+            Serial.println(frameToReadableString(masterFrame));
+            radio.write(&text, sizeof(text));
 
-          changeToSend();
+            F2_SETUP = 0;
+            F2_READ = 1;
+            F2_WRITE = 0;
+          }
+          if (F2_READ) {
+            changeToReceive();
+            if (radio.available())
+            {
+              char received[24] = "";
+              radio.read(&received, sizeof(received));
+              slaveFrame = stringToFrame(String(received));
+              Serial.println(frameToReadableString(slaveFrame));
+              if (slaveFrame.slaveId == deviceOpList[f2devOpIter].id && slaveFrame.fun == 0x05)
+              {
+                Serial.print("Received value: ");
+                Serial.println(trimLoadPadding(slaveFrame.load));
+                F2_READ = 0;
+                F2_WRITE = 1;
+              }
+            }
+          }
+          if (F2_WRITE) {
+            //send ACK
+            setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x0C, 1, masterFrame.load, 0x00);
+            char text[24] = "";
+            frameToString(slaveFrame).toCharArray(text, 24);
+            radio.write(&text, sizeof(text));
+            F2_SETUP = 1;
+            f2devOpIter += 1;
+          }
 
-          setFrame(masterFrame, DEVICE_ID, deviceOpList[f2devOpIter].id, 0x04, 1, emptyLoad, 0x00);
-          //send this shit
-
-          changeToReceive();
-          ///wait for signal
+          /// wait for signal
 
           /////////////////////////
           // show data on screen //
           /////////////////////////
         }
         if (deviceOpList[f2devOpIter].nextOp == 6)
-        { //0x06 wysłanie danych z CRC8 (M > S)
-          //nah man, not happening
+        { // 0x06 wysłanie danych z CRC8 (M > S)
+          // nah man, not happening
         }
         if (deviceOpList[f2devOpIter].nextOp == 7)
-        { //0x07 żądanie przesyłania danych ze Slave z CRC8 (M > S).
+        { // 0x07 żądanie przesyłania danych ze Slave z CRC8 (M > S).
         }
         if (deviceOpList[f2devOpIter].nextOp == 9)
-        { //0x09 wysłanie danych z CRC8 i szyfrowaniem AES128 (M > S)
+        { // 0x09 wysłanie danych z CRC8 i szyfrowaniem AES128 (M > S)
         }
         if (deviceOpList[f2devOpIter].nextOp == 10)
-        { //0x0A żądanie przesyłania danych ze Slave z CRC8 i szyfrowaniem AES128 (M > S).
+        { // 0x0A żądanie przesyłania danych ze Slave z CRC8 i szyfrowaniem AES128 (M > S).
         }
-        //to nie będzie w deviceOp a zawsze trzeba na to poczekać
-        //if (deviceOpList[f2devOpIter].nextOp == 12) { //0x0C potwierdzenie odbioru danych z węzła Master lub Slave.
+        // to nie będzie w deviceOp a zawsze trzeba na to poczekać
+        // if (deviceOpList[f2devOpIter].nextOp == 12) { //0x0C potwierdzenie odbioru danych z węzła Master lub Slave.
 
         //}
 
-        //else: nie rób nic, przejdź do następnej operacji w liście
-        //op  eracje zakończone, przejdź do następnej
-        //        f2devOpIter += 1;
+        // else: nie rób nic, przejdź do następnej operacji w liście
+        // op  eracje zakończone, przejdź do następnej
+        //         f2devOpIter += 1;
       }
       else
       {
@@ -388,17 +425,72 @@ void loop()
         radio.read(&received, sizeof(received));
         masterFrame = stringToFrame(String(received));
 
-        if (masterFrame.fun == 0x03) {
-          Serial.print("Received value: ");
-          Serial.println(trimLoadPadding(masterFrame.load));
-          F2 = 0;
-          changeToSend();
-          setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x0C, 1, masterFrame.load, 0x00);
-          char text[24]="";
-          frameToString(slaveFrame).toCharArray(text,24);
-          radio.write(&text,sizeof(text));
+        if (masterFrame.fun == 0x03)
+        {
+          if (F2_SETUP)
+          {
+            Serial.print("Received value: ");
+            Serial.println(trimLoadPadding(masterFrame.load));
+            changeToSend();
+            F2_SETUP = 0;
+            F2_READ = 0;
+            F2_WRITE = 1;
+          }
+          if (F2_WRITE)
+          {
+            //send ACK
+            setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x0C, 1, masterFrame.load, 0x00);
+            char text[24] = "";
+            frameToString(slaveFrame).toCharArray(text, 24);
+            radio.write(&text, sizeof(text));
+            F2_SETUP = 1;
+          }
+          // F2 = 0;
+        }
+        if (masterFrame.fun == 0x04)
+        {
+          if (F2_SETUP) {
+            changeToSend();
+            int arraySize = 16;
+            char paddedSensorValue[16] = "";
+            readSensorToCharTable(paddedSensorValue);
+            char load[16]; // insert load instead of emptyLoad of course
+            setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID , 0x05, 1, paddedSensorValue, 0x00);
+
+            char text[24] = "";
+            frameToString(slaveFrame).toCharArray(text, 24);
+            Serial.println(frameToReadableString(slaveFrame));
+            radio.write(&text, sizeof(text));
+
+            F2_WRITE = 0;
+            changeToReceive();
+            F2_READ = 1;
+            sendTimestamp = millis();
+            Serial.println("sent value from slave, 0x04");
+          }
+          if (F2_READ) {
+            changeToReceive();
+            char received[24] = "";
+            radio.read(&received, sizeof(received));
+            masterFrame = stringToFrame(String(received));
+            Serial.println(frameToReadableString(masterFrame));
+            if (masterFrame.fun == 0x0C)
+            {
+              if (DEBUG_INFO)
+              {
+                Serial.println("[DEBUG] received ACK from master");
+              }
+              F2_SETUP = 1;
+              F2_READ = 0;
+            }
+            // wait for ack
+          }
+          // fetch value
+          // send value
+          // wait for 0x0c
         }
       }
+
       /*
          0x05
          0x08
