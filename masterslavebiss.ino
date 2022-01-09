@@ -27,7 +27,7 @@ DEVOP deviceOpList[25];
 int DEVOPITER = 0;
 int f2devOpIter = 0;
 int deviceList[25];
-int DEVICE_ID = 8;
+int DEVICE_ID = 7;
 
 /* Faza wyboru typu urządzenia master/slave*/
 boolean F_CHOOSEMS = 1;
@@ -388,16 +388,15 @@ void loop()
         radio.read(&received, sizeof(received));
         masterFrame = stringToFrame(String(received));
 
-        Serial.print(frameToReadableString(masterFrame));
-        Serial.print("   ");
-        Serial.println(String(received));
-
-        if (masterFrame.fun == 0x03)
-        {
+        if (masterFrame.fun == 0x03) {
+          Serial.print("Received value: ");
           Serial.println(trimLoadPadding(masterFrame.load));
           F2 = 0;
           changeToSend();
           setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x0C, 1, masterFrame.load, 0x00);
+          char text[24]="";
+          frameToString(slaveFrame).toCharArray(text,24);
+          radio.write(&text,sizeof(text));
         }
       }
       /*
