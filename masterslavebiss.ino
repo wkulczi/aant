@@ -3,8 +3,11 @@
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
+#include <LiquidCrystal_I2C.h>
 
 FastCRC8 CRC8;
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
 ////////////// Your sensor configuration here //////////////
 int potPin = A1;
 
@@ -13,10 +16,10 @@ const byte address[6] = "00001";
 
 FRAME masterFrame;
 FRAME slaveFrame;
-FRAME bufFrame;
 /* DEBUG FLAG FOR LOGGING */
 
 int numOfDevices = 0;
+int f1NumOfDevices = 0;
 DEVOP deviceOpList[25];
 int DEVOPITER = 0;
 int f2devOpIter = 0;
@@ -47,7 +50,7 @@ unsigned long sendTimestamp;
 
 char emptyLoad[16] = {(char)45};
 
-unsigned long WAIT_FOR_ACK_TIME = 2000;
+unsigned long WAIT_FOR_ACK_TIME = 5000;
 
 void setup()
 {
@@ -65,8 +68,6 @@ void setup()
   Serial.begin(9600);
   masterFrame = initFrame();
   slaveFrame = initFrame();
-  bufFrame = initFrame();
-  WAIT_FOR_ACK_TIME = 800;
   if (DEBUG_INFO)
   {
     Serial.print("[DEBUG] Device with id ");
@@ -80,6 +81,7 @@ void loop()
   if (F_CHOOSEMS)
   {
     numOfDevices = 0;
+    f1NumOfDevices = 0;
     recvWithEndMarker();
     showNewData();
     if (ms_choice == 'M' || ms_choice == 'm')
@@ -146,12 +148,11 @@ void loop()
                   {
                     Serial.print("[DEBUG] found device with id ");
                     Serial.print(i);
-                    Serial.print(" ");
-                    Serial.println(numOfDevices);
+                    Serial.println(" ");
                   }
-                  deviceList[numOfDevices] = i;
+                  deviceList[f1NumOfDevices] = i;
                   //                  Serial.println(numOfDevices);  = > 3
-                  numOfDevices = numOfDevices + 1;
+                  f1NumOfDevices = f1NumOfDevices + 1;
                   //                  Serial.println(numOfDevices); => 4
                 }
               }
@@ -159,21 +160,19 @@ void loop()
           }
           if (i == 26)
           {
-            if (numOfDevices > 0)
+            if (f1NumOfDevices > 0)
             {
-              // todo rozwiąż zagadkę dlaczego numOfDevices w którymś miejscu wskakuje do wartości 3
-              Serial.print("Found devices with ids: ");
-              for (int j = 0; j < numOfDevices; j++) {
-                Serial.print(deviceList[j]);
-                Serial.print(" ");
+              if (DEBUG_INFO)
+              {
+                Serial.print("Found ");
+                Serial.print(f1NumOfDevices);
+                Serial.print(" device(s) with ids: ");
+                for (int j = 0; j < f1NumOfDevices; j++) {
+                  Serial.print(deviceList[j]);
+                  Serial.print(" ");
+                }
+                Serial.println("");
               }
-              //              if (DEBUG_INFO)
-              //              {
-              //                Serial.println("");
-              //                Serial.print("Found ");
-              //                Serial.print(numOfDevices);
-              //                Serial.println(" devices.");
-              //              }
             }
             // end scan
             if (DEBUG_INFO)
@@ -184,6 +183,7 @@ void loop()
               Serial.println("WHERE DD - DEVICE NUMBER");
               Serial.println("WHERE OO - OPERATION NUMBER");
             }
+            numOfDevices = f1NumOfDevices;
             SCAN_BEGIN = 0;
             GETOPS = 1;
           }
@@ -204,6 +204,15 @@ void loop()
             f2devOpIter = 0;
             if (DEBUG_INFO)
             {
+              Serial.print("devopiter: ");
+              Serial.println(DEVOPITER);
+              for (int i = 0; i < DEVOPITER; i++) {
+                Serial.print(deviceOpList[i].id);
+                Serial.print(" ");
+                Serial.print(deviceOpList[i].nextOp);
+                Serial.print(".");
+              }
+              Serial.println("");
               Serial.println("LEAVING F1");
             }
           }
@@ -489,6 +498,7 @@ void loop()
           char received[24] = "";
           radio.read(&received, sizeof(received));
           masterFrame = stringToFrame(String(received));
+          Serial.println("RECEIVED DATA FOR ME");
           if (masterFrame.slaveId == DEVICE_ID)
           {
             IS_BUSY = 1;
@@ -566,48 +576,53 @@ void loop()
             }
           }
         }
-      }
-      if (masterFrame.fun == 0x06)
-      {
-        if (F2_SETUP)
+        if (masterFrame.fun == 0x06)
         {
-          F2_SETUP = 0;
-          F2_READ = 1;
-          F2_WRITE = 0;
-        }
-        if (F2_READ)
-        {
-          charsToUints c2u;
-          for (int i = 0; i < sizeof(masterFrame.load); i++) {
-            c2u.charVals[i] = masterFrame.load[i];
-          }
-          uint8_t crc = CRC8.smbus(c2u.uintVals, sizeof(c2u.uintVals));
-          if (crc == masterFrame.crc)
+          if (F2_SETUP && !F2_READ & !F2_WRITE)
           {
-            Serial.println("crc is ok.");
-
-            // read data with crc
-            Serial.print("Received value: ");
-            Serial.println(trimLoadPadding(masterFrame.load));
-            // if crc is right:
-            F2_READ = 0;
-            changeToSend();
-            F2_WRITE = 1;
+            F2_SETUP = 0;
+            F2_READ = 1;
+            F2_WRITE = 0;
           }
-          else
+          if (F2_READ && !F2_SETUP && !F2_WRITE)
           {
-            Serial.println("CRC WRONG :((");
+            charsToUints c2u;
+            for (int i = 0; i < sizeof(masterFrame.load); i++) {
+              c2u.charVals[i] = masterFrame.load[i];
+            }
+            uint8_t crc = CRC8.smbus(c2u.uintVals, sizeof(c2u.uintVals));
+            Serial.print("Received data, checking crc... ");
+            if (crc == masterFrame.crc)
+            {
+              F2_READ = 0;
+              F2_SETUP = 0;
+              F2_WRITE = 1;
+              changeToSend();
+              Serial.println("Crc is ok");
+              Serial.print("Received value: ");
+              Serial.println(trimLoadPadding(masterFrame.load));
+              // if crc is right:
+            }
+            else
+            {
+              F2_SETUP = 1;
+              F2_READ = 0;
+              F2_WRITE = 0;
+              IS_BUSY = 0;
+              Serial.println("CRC WRONG :((");
+            }
           }
-        }
-        if (F2_WRITE)
-        {
-          // send ACK
-          setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x0C, 1, masterFrame.load, 0);
-          char text[24] = "";
-          frameToString(slaveFrame).toCharArray(text, 24);
-          radio.write(&text, sizeof(text));
-          F2_SETUP = 1;
-          IS_BUSY = 0;
+          if (F2_WRITE && !F2_SETUP && !F2_READ)
+          {
+            // send ACK
+            setFrame(slaveFrame, masterFrame.masterId, DEVICE_ID, 0x0C, 1, masterFrame.load, 0);
+            char text[24] = "";
+            frameToString(slaveFrame).toCharArray(text, 24);
+            radio.write(&text, sizeof(text));
+            F2_SETUP = 1;
+            F2_WRITE = 0;
+            IS_BUSY = 0;
+          }
         }
       }
       /*
@@ -732,7 +747,7 @@ void parseOpString(String input)
   */
   DEVOP buf;
   String str = input;
-  String strs[20];
+  String strs[10];
   int stringCount = 0;
   DEVOPITER = 0;
 
@@ -753,8 +768,13 @@ void parseOpString(String input)
 
   for (int i = 0; i < stringCount; i++)
   {
+    Serial.println("Parsing one pair...");
     String devop = strs[i];
     int dashIndex = str.indexOf('-');
+
+    Serial.println(devop);
+    Serial.println(devop.substring(0, dashIndex));
+    Serial.println(devop.substring(dashIndex + 1));
 
     buf.id = devop.substring(0, dashIndex).toInt();
     buf.nextOp = devop.substring(dashIndex + 1).toInt();
@@ -772,7 +792,6 @@ boolean containsDevice(int deviceId)
       return true;
     }
   }
-  Serial.println("");
   return false;
 }
 
@@ -783,7 +802,7 @@ void sensorSetup()
 
 int readSensor()
 {
-    return analogRead(potPin);
+  return analogRead(potPin);
 }
 
 void readSensorToCharTable(char *table)
@@ -819,4 +838,6 @@ String trimLoadPadding(char *table)
 
 void displaySetup()
 {
+  lcd.init();
+  lcd.backlight();
 }
