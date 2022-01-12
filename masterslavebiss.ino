@@ -9,7 +9,7 @@ FastCRC8 CRC8;
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 /// DEVICE ID
-int DEVICE_ID = 5;
+int DEVICE_ID = 6;
 
 ////////////// Your sensor configuration here //////////////
 int potPin = A1;
